@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bunker Cord</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #313338; color: #dbdee1; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+
+        /* Gate Modal */
+        #gate-overlay { position: fixed; inset: 0; background: #1e1f22; display: flex; align-items: center; justify-content: center; z-index: 200; }
+        .gate-card { background: #2b2d31; padding: 32px; border-radius: 8px; width: 340px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 12px; }
+        .gate-card h2 { color: #f2f3f5; font-size: 18px; text-align: center; margin-bottom: 4px; }
+        .gate-card input { width: 100%; padding: 10px; background: #1e1f22; border: 1px solid #111; color: #fff; border-radius: 4px; outline: none; }
+        .gate-card button { width: 100%; padding: 10px; background: #5865f2; color: #fff; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .gate-card button:hover { background: #4752c4; }
+        .error-msg { color: #f23f43; font-size: 12px; text-align: center; min-height: 16px; }
+
+        /* Layout */
+        #app-container { display: none; width: 100vw; height: 100vh; flex-direction: row; background: #313338; }
+        
+        .sidebar { width: 240px; background: #2b2d31; display: flex; flex-direction: column; padding: 12px; gap: 12px; border-right: 1px solid #1f2023; }
+        .sidebar h3 { font-size: 11px; text-transform: uppercase; color: #949ba4; letter-spacing: 0.5px; }
+        .vc-box { background: #1e1f22; border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .vc-controls { display: flex; gap: 6px; }
+        .vc-btn { flex: 1; padding: 6px; font-size: 11px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; background: #383a40; color: #f2f3f5; }
+        .vc-btn.active-green { background: #23a55a; color: white; }
+        .vc-btn.screen-btn { background: #5865f2; color: white; }
+        
+        .main-pane { flex: 1; display: flex; flex-direction: column; background: #313338; }
+        .chat-header { height: 48px; border-bottom: 1px solid #1f2023; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; font-weight: bold; color: #f2f3f5; background: #313338; }
+        .user-tag { font-size: 12px; color: #949ba4; font-weight: normal; }
+        
+        .workspace { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        
+        /* Video Share Grid Area */
+        #screen-container { display: none; background: #111; padding: 12px; justify-content: center; align-items: center; max-height: 350px; border-bottom: 1px solid #1f2023; }
+        #screen-container video { max-width: 100%; max-height: 300px; border-radius: 6px; background: #000; }
+
+        .messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+        .msg { display: flex; gap: 12px; }
+        .avatar { width: 36px; height: 36px; border-radius: 50%; background: #5865f2; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; flex-shrink: 0; }
+        .msg-body h4 { font-size: 14px; color: #f2f3f5; display: flex; gap: 8px; align-items: center; }
+        .msg-body h4 span { font-size: 11px; color: #949ba4; font-weight: normal; }
+        .msg-body p { font-size: 14px; color: #dbdee1; margin-top: 3px; word-break: break-word; }
+        
+        .input-area { padding: 16px; background: #313338; }
+        .input-box { background: #383a40; border-radius: 8px; display: flex; align-items: center; padding: 0 16px; }
+        .input-box input { flex: 1; background: transparent; border: none; padding: 12px 0; color: #f2f3f5; outline: none; font-size: 14px; }
+        
+        audio { display: none; }
+    </style>
+</head>
+<body>
+
+    <!-- Gate Modal -->
+    <div id="gate-overlay">
+        <div class="gate-card">
+            <h2>Bunker Cord Gate</h2>
+            <input type="password" id="pass-input" placeholder="Room Password">
+            <input type="text" id="name-input" placeholder="Your Display Name (e.g. Tristan)" maxlength="20">
+            <div class="error-msg" id="gate-error"></div>
+            <button onclick="enterBunker()">Unlock & Enter</button>
+        </div>
+    </div>
+
+    <!-- App UI -->
+    <div id="app-container">
+        <div class="sidebar">
+            <h3>Voice Channel</h3>
+            <div class="vc-box">
+                <div style="font-size: 12px; color: #f2f3f5;">🔊 general-vc</div>
+                <div class="vc-vc-status" id="vc-status" style="font-size: 11px; color: #949ba4;">Disconnected</div>
+                <div class="vc-controls">
+                    <button class="vc-btn" id="vc-toggle-btn" onclick="toggleVoice()">Join VC</button>
+                    <button class="vc-btn screen-btn" id="screen-btn" onclick="toggleScreenShare()" disabled>Screen</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-pane">
+            <div class="chat-header">
+                <div># private-bunker</div>
+                <div class="user-tag" id="current-user-display"></div>
+            </div>
+            
+            <div class="workspace">
+                <div id="screen-container">
+                    <video id="remote-video" autoplay playsinline></video>
+                </div>
+                <div class="messages" id="chat-messages"></div>
+            </div>
+
+            <div class="input-area">
+                <div class="input-box">
+                    <input type="text" id="msg-input" placeholder="Message #private-bunker" autocomplete="off">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <audio id="remote-audio" autoplay></audio>
+
+    <script>
+        // CONFIG
+        const SUPABASE_URL = 'https://jxstuagrdgiobgghfwgj.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_Vvpokk0IL7lCehefj12rnQ_bQsxFrL3';
+        const ROOM_PASSWORD = 'tristandota06';
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        let myName = '';
+        let myPeerId = null;
+        let peer = null;
+        let localStream = null;
+        let localScreenStream = null;
+        let activeCall = null;
+        let vcChannel = null;
+
+        function enterBunker() {
+            const pass = document.getElementById('pass-input').value;
+            const name = document.getElementById('name-input').value.trim();
+            const err = document.getElementById('gate-error');
+
+            if (pass !== ROOM_PASSWORD) { err.innerText = 'Wrong room password.'; return; }
+            if (!name) { err.innerText = 'Enter a display name.'; return; }
+
+            myName = name;
+            document.getElementById('current-user-display').innerText = `Logged in as: ${myName}`;
+            document.getElementById('gate-overlay').remove();
+            document.getElementById('app-container').style.display = 'flex';
+
+            initPeer();
+            loadHistory();
+            subscribeChatRealtime();
+        }
+
+        document.getElementById('pass-input').addEventListener('keypress', e => { if(e.key === 'Enter') enterBunker(); });
+        document.getElementById('name-input').addEventListener('keypress', e => { if(e.key === 'Enter') enterBunker(); });
+
+        function initPeer() {
+            peer = new Peer();
+            peer.on('open', (id) => {
+                myPeerId = id;
+                setupVCSignaling();
+            });
+
+            peer.on('call', async (call) => {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                localStream = stream;
+                call.answer(stream);
+                handleCallStreams(call);
+            });
+        }
+
+        function setupVCSignaling() {
+            vcChannel = supabase.channel('bunker-vc-room', {
+                config: { broadcast: { self: false } }
+            });
+
+            vcChannel.on('broadcast', { event: 'vc-signal' }, async (payload) => {
+                const data = payload.payload;
+                if (data.type === 'peer-announce' && data.peerId !== myPeerId) {
+                    if (localStream) {
+                        const call = peer.call(data.peerId, localStream);
+                        handleCallStreams(call);
+                    }
+                }
+            }).subscribe();
+        }
+
+        async function toggleVoice() {
+            const btn = document.getElementById('vc-toggle-btn');
+            const status = document.getElementById('vc-status');
+            const screenBtn = document.getElementById('screen-btn');
+
+            if (!localStream) {
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                    btn.innerText = 'Leave VC';
+                    btn.classList.add('active-green');
+                    status.innerText = 'Connected (Microphone Live)';
+                    screenBtn.disabled = false;
+
+                    vcChannel.send({
+                        type: 'broadcast',
+                        event: 'vc-signal',
+                        payload: { type: 'peer-announce', peerId: myPeerId }
+                    });
+                } catch (err) {
+                    alert('Microphone access denied or unavailable.');
+                }
+            } else {
+                localStream.getTracks().forEach(t => t.stop());
+                localStream = null;
+                if (localScreenStream) toggleScreenShare(true);
+                btn.innerText = 'Join VC';
+                btn.classList.remove('active-green');
+                status.innerText = 'Disconnected';
+                screenBtn.disabled = true;
+            }
+        }
+
+        function handleCallStreams(call) {
+            activeCall = call;
+            call.on('stream', (remoteStream) => {
+                if (remoteStream.getVideoTracks().length > 0) {
+                    const vid = document.getElementById('remote-video');
+                    vid.srcObject = remoteStream;
+                    document.getElementById('screen-container').style.display = 'flex';
+                } else {
+                    const aud = document.getElementById('remote-audio');
+                    aud.srcObject = remoteStream;
+                }
+            });
+        }
+
+        async function toggleScreenShare(forceStop = false) {
+            const container = document.getElementById('screen-container');
+            const btn = document.getElementById('screen-btn');
+
+            if (!forceStop && !localScreenStream) {
+                try {
+                    localScreenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                    btn.innerText = 'Stop Screen';
+                    container.style.display = 'flex';
+
+                    localScreenStream.getVideoTracks()[0].onended = () => toggleScreenShare(true);
+                } catch(e) { console.log('Screen share cancelled'); }
+            } else {
+                if (localScreenStream) localScreenStream.getTracks().forEach(t => t.stop());
+                localScreenStream = null;
+                btn.innerText = 'Screen';
+                container.style.display = 'none';
+            }
+        }
+
+        const chatBox = document.getElementById('chat-messages');
+        const msgInput = document.getElementById('msg-input');
+
+        async function loadHistory() {
+            const { data } = await supabase.from('bunker_messages').select('*').order('created_at', { ascending: true }).limit(50);
+            if (data) {
+                chatBox.innerHTML = '';
+                data.forEach(appendUI);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        }
+
+        function appendUI(msg) {
+            const div = document.createElement('div');
+            div.className = 'msg';
+            const initial = (msg.sender_name || 'U')[0].toUpperCase();
+            const timeStr = new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            div.innerHTML = `
+                <div class="avatar">${escapeHtml(initial)}</div>
+                <div class="msg-body">
+                    <h4>${escapeHtml(msg.sender_name)} <span>${timeStr}</span></h4>
+                    <p>${escapeHtml(msg.content)}</p>
+                </div>
+            `;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        async function sendMsg() {
+            const content = msgInput.value.trim();
+            if (!content) return;
+            msgInput.value = '';
+            await supabase.from('bunker_messages').insert([{ 
+                sender_name: myName, 
+                content: content 
+            }]);
+        }
+
+        msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMsg(); });
+
+        function subscribeChatRealtime() {
+            supabase
+                .channel('bunker-room-live')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bunker_messages' }, payload => {
+                    appendUI(payload.new);
+                })
+                .subscribe();
+        }
+    </script>
+</body>
+</html>
