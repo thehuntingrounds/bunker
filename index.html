@@ -135,11 +135,9 @@
             let localStream = null;
             let vcChannel = null;
 
-            // Pre-fill fields if remembered
             if (myName) document.getElementById('name-input').value = myName;
             if (myAvatar) document.getElementById('gate-avatar-preview').innerHTML = `<img src="${myAvatar}">`;
 
-            // Auto-login if previously unlocked in this browser
             if (isSessionUnlocked && myName) {
                 launchApp();
             }
@@ -157,7 +155,6 @@
                 }
             });
 
-            // Collapsible VC box
             document.getElementById('vc-collapse-trigger').addEventListener('click', () => {
                 const box = document.getElementById('vc-box-container');
                 const arrow = document.getElementById('vc-arrow');
@@ -191,7 +188,6 @@
                 subscribeChatRealtime();
             }
 
-            // Logout Handler
             document.getElementById('logout-btn').addEventListener('click', () => {
                 localStorage.removeItem('bunker_unlocked');
                 location.reload();
@@ -273,7 +269,11 @@
             const msgInput = document.getElementById('msg-input');
 
             async function loadHistory() {
-                const { data } = await supabaseClient.from('bunker_messages').select('*').order('created_at', { ascending: true }).limit(50);
+                const { data, error } = await supabaseClient.from('bunker_messages').select('*').order('created_at', { ascending: true }).limit(50);
+                if (error) {
+                    console.error('Error loading history:', error);
+                    return;
+                }
                 if (data) {
                     chatBox.innerHTML = '';
                     data.forEach(appendUI);
@@ -285,12 +285,15 @@
                 const div = document.createElement('div');
                 div.className = 'msg';
                 const initial = (msg.sender_name || 'U')[0].toUpperCase();
-                const avatarContent = msg.sender_avatar ? `<img src="${msg.sender_avatar}">` : escapeHtml(initial);
-                const timeStr = new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                const avatarContent = (msg.sender_avatar && msg.sender_avatar.startsWith('data:image')) 
+                    ? `<img src="${msg.sender_avatar}">` 
+                    : escapeHtml(initial);
+                
+                const timeStr = msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Just now';
                 div.innerHTML = `
                     <div class="avatar">${avatarContent}</div>
                     <div class="msg-body">
-                        <h4>${escapeHtml(msg.sender_name)} <span>${timeStr}</span></h4>
+                        <h4>${escapeHtml(msg.sender_name || 'Anonymous')} <span>${timeStr}</span></h4>
                         <p>${escapeHtml(msg.content)}</p>
                     </div>
                 `;
@@ -299,31 +302,30 @@
             }
 
             function escapeHtml(text) {
-                return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                return String(text || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
             }
 
             async function sendMsg() {
                 const content = msgInput.value.trim();
                 if (!content) return;
                 msgInput.value = '';
-                await supabaseClient.from('bunker_messages').insert([{ 
+                
+                const payload = { 
                     sender_name: myName, 
-                    content: content,
-                    sender_avatar: myAvatar 
-                }]);
+                    content: content 
+                };
+                // Only attach avatar if under 50KB to avoid Supabase 400 bad request size limits
+                if (myAvatar && myAvatar.length < 50000) {
+                    payload.sender_avatar = myAvatar;
+                }
+
+                const { error } = await supabaseClient.from('bunker_messages').insert([payload]);
+                if (error) {
+                    console.error('Insert error:', error);
+                    alert('Could not send message: ' + error.message);
+                }
             }
 
             msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMsg(); });
 
-            function subscribeChatRealtime() {
-                supabaseClient
-                    .channel('bunker-room-live')
-                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bunker_messages' }, payload => {
-                        appendUI(payload.new);
-                    })
-                    .subscribe();
-            }
-        })();
-    </script>
-</body>
-</html>
+            function subscribeChat
