@@ -314,7 +314,6 @@
                     sender_name: myName, 
                     content: content 
                 };
-                // Only attach avatar if under 50KB to avoid Supabase 400 bad request size limits
                 if (myAvatar && myAvatar.length < 50000) {
                     payload.sender_avatar = myAvatar;
                 }
@@ -328,4 +327,15 @@
 
             msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMsg(); });
 
-            function subscribeChat
+            function subscribeChatRealtime() {
+                supabaseClient
+                    .channel('bunker-room-live')
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bunker_messages' }, payload => {
+                        appendUI(payload.new);
+                    })
+                    .subscribe();
+            }
+        })();
+    </script>
+</body>
+</html>
