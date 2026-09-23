@@ -61,9 +61,9 @@
         <div class="gate-card">
             <h2>Bunker Cord Gate</h2>
             <input type="password" id="pass-input" placeholder="Room Password">
-            <input type="text" id="name-input" placeholder="Your Display Name (e.g. Tristan)" maxlength="20">
+            <input type="text" id="name-input" placeholder="Your Display Name (e.g. Vodyanitsa)" maxlength="20">
             <div class="error-msg" id="gate-error"></div>
-            <button onclick="enterBunker()">Unlock & Enter</button>
+            <button id="unlock-btn">Unlock & Enter</button>
         </div>
     </div>
 
@@ -75,8 +75,8 @@
                 <div style="font-size: 12px; color: #f2f3f5;">🔊 general-vc</div>
                 <div class="vc-vc-status" id="vc-status" style="font-size: 11px; color: #949ba4;">Disconnected</div>
                 <div class="vc-controls">
-                    <button class="vc-btn" id="vc-toggle-btn" onclick="toggleVoice()">Join VC</button>
-                    <button class="vc-btn screen-btn" id="screen-btn" onclick="toggleScreenShare()" disabled>Screen</button>
+                    <button class="vc-btn" id="vc-toggle-btn">Join VC</button>
+                    <button class="vc-btn screen-btn" id="screen-btn" disabled>Screen</button>
                 </div>
             </div>
         </div>
@@ -105,190 +105,197 @@
     <audio id="remote-audio" autoplay></audio>
 
     <script>
-        // CONFIG
-        const SUPABASE_URL = 'https://jxstuagrdgiobgghfwgj.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable_Vvpokk0IL7lCehefj12rnQ_bQsxFrL3';
-        const ROOM_PASSWORD = 'tristandota06';
+        (function() {
+            // CONFIG
+            const SUPABASE_URL = 'https://jxstuagrdgiobgghfwgj.supabase.co';
+            const SUPABASE_KEY = 'sb_publishable_Vvpokk0IL7lCehefj12rnQ_bQsxFrL3';
+            const ROOM_PASSWORD = 'tristandota06';
 
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        let myName = '';
-        let myPeerId = null;
-        let peer = null;
-        let localStream = null;
-        let localScreenStream = null;
-        let activeCall = null;
-        let vcChannel = null;
+            const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            let myName = '';
+            let myPeerId = null;
+            let peer = null;
+            let localStream = null;
+            let localScreenStream = null;
+            let activeCall = null;
+            let vcChannel = null;
 
-        function enterBunker() {
-            const pass = document.getElementById('pass-input').value;
-            const name = document.getElementById('name-input').value.trim();
-            const err = document.getElementById('gate-error');
+            function enterBunker() {
+                const pass = document.getElementById('pass-input').value;
+                const name = document.getElementById('name-input').value.trim();
+                const err = document.getElementById('gate-error');
 
-            if (pass !== ROOM_PASSWORD) { err.innerText = 'Wrong room password.'; return; }
-            if (!name) { err.innerText = 'Enter a display name.'; return; }
+                if (pass !== ROOM_PASSWORD) { err.innerText = 'Wrong room password.'; return; }
+                if (!name) { err.innerText = 'Enter a display name.'; return; }
 
-            myName = name;
-            document.getElementById('current-user-display').innerText = `Logged in as: ${myName}`;
-            document.getElementById('gate-overlay').remove();
-            document.getElementById('app-container').style.display = 'flex';
+                myName = name;
+                document.getElementById('current-user-display').innerText = `Logged in as: ${myName}`;
+                document.getElementById('gate-overlay').remove();
+                document.getElementById('app-container').style.display = 'flex';
 
-            initPeer();
-            loadHistory();
-            subscribeChatRealtime();
-        }
+                initPeer();
+                loadHistory();
+                subscribeChatRealtime();
+            }
 
-        document.getElementById('pass-input').addEventListener('keypress', e => { if(e.key === 'Enter') enterBunker(); });
-        document.getElementById('name-input').addEventListener('keypress', e => { if(e.key === 'Enter') enterBunker(); });
+            document.getElementById('unlock-btn').addEventListener('click', enterBunker);
+            document.getElementById('pass-input').addEventListener('keypress', e => { if(e.key === 'Enter') enterBunker(); });
+            document.getElementById('name-input').addEventListener('keypress', e => { if(e.key === 'Enter') enterBunker(); });
 
-        function initPeer() {
-            peer = new Peer();
-            peer.on('open', (id) => {
-                myPeerId = id;
-                setupVCSignaling();
-            });
+            function initPeer() {
+                peer = new Peer();
+                peer.on('open', (id) => {
+                    myPeerId = id;
+                    setupVCSignaling();
+                });
 
-            peer.on('call', async (call) => {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                localStream = stream;
-                call.answer(stream);
-                handleCallStreams(call);
-            });
-        }
+                peer.on('call', async (call) => {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                    localStream = stream;
+                    call.answer(stream);
+                    handleCallStreams(call);
+                });
+            }
 
-        function setupVCSignaling() {
-            vcChannel = supabase.channel('bunker-vc-room', {
-                config: { broadcast: { self: false } }
-            });
+            function setupVCSignaling() {
+                vcChannel = supabaseClient.channel('bunker-vc-room', {
+                    config: { broadcast: { self: false } }
+                });
 
-            vcChannel.on('broadcast', { event: 'vc-signal' }, async (payload) => {
-                const data = payload.payload;
-                if (data.type === 'peer-announce' && data.peerId !== myPeerId) {
-                    if (localStream) {
-                        const call = peer.call(data.peerId, localStream);
-                        handleCallStreams(call);
+                vcChannel.on('broadcast', { event: 'vc-signal' }, async (payload) => {
+                    const data = payload.payload;
+                    if (data.type === 'peer-announce' && data.peerId !== myPeerId) {
+                        if (localStream) {
+                            const call = peer.call(data.peerId, localStream);
+                            handleCallStreams(call);
+                        }
                     }
-                }
-            }).subscribe();
-        }
-
-        async function toggleVoice() {
-            const btn = document.getElementById('vc-toggle-btn');
-            const status = document.getElementById('vc-status');
-            const screenBtn = document.getElementById('screen-btn');
-
-            if (!localStream) {
-                try {
-                    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                    btn.innerText = 'Leave VC';
-                    btn.classList.add('active-green');
-                    status.innerText = 'Connected (Microphone Live)';
-                    screenBtn.disabled = false;
-
-                    vcChannel.send({
-                        type: 'broadcast',
-                        event: 'vc-signal',
-                        payload: { type: 'peer-announce', peerId: myPeerId }
-                    });
-                } catch (err) {
-                    alert('Microphone access denied or unavailable.');
-                }
-            } else {
-                localStream.getTracks().forEach(t => t.stop());
-                localStream = null;
-                if (localScreenStream) toggleScreenShare(true);
-                btn.innerText = 'Join VC';
-                btn.classList.remove('active-green');
-                status.innerText = 'Disconnected';
-                screenBtn.disabled = true;
+                }).subscribe();
             }
-        }
 
-        function handleCallStreams(call) {
-            activeCall = call;
-            call.on('stream', (remoteStream) => {
-                if (remoteStream.getVideoTracks().length > 0) {
-                    const vid = document.getElementById('remote-video');
-                    vid.srcObject = remoteStream;
-                    document.getElementById('screen-container').style.display = 'flex';
+            async function toggleVoice() {
+                const btn = document.getElementById('vc-toggle-btn');
+                const status = document.getElementById('vc-status');
+                const screenBtn = document.getElementById('screen-btn');
+
+                if (!localStream) {
+                    try {
+                        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                        btn.innerText = 'Leave VC';
+                        btn.classList.add('active-green');
+                        status.innerText = 'Connected (Microphone Live)';
+                        screenBtn.disabled = false;
+
+                        vcChannel.send({
+                            type: 'broadcast',
+                            event: 'vc-signal',
+                            payload: { type: 'peer-announce', peerId: myPeerId }
+                        });
+                    } catch (err) {
+                        alert('Microphone access denied or unavailable.');
+                    }
                 } else {
-                    const aud = document.getElementById('remote-audio');
-                    aud.srcObject = remoteStream;
+                    localStream.getTracks().forEach(t => t.stop());
+                    localStream = null;
+                    if (localScreenStream) toggleScreenShare(true);
+                    btn.innerText = 'Join VC';
+                    btn.classList.remove('active-green');
+                    status.innerText = 'Disconnected';
+                    screenBtn.disabled = true;
                 }
-            });
-        }
-
-        async function toggleScreenShare(forceStop = false) {
-            const container = document.getElementById('screen-container');
-            const btn = document.getElementById('screen-btn');
-
-            if (!forceStop && !localScreenStream) {
-                try {
-                    localScreenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-                    btn.innerText = 'Stop Screen';
-                    container.style.display = 'flex';
-
-                    localScreenStream.getVideoTracks()[0].onended = () => toggleScreenShare(true);
-                } catch(e) { console.log('Screen share cancelled'); }
-            } else {
-                if (localScreenStream) localScreenStream.getTracks().forEach(t => t.stop());
-                localScreenStream = null;
-                btn.innerText = 'Screen';
-                container.style.display = 'none';
             }
-        }
 
-        const chatBox = document.getElementById('chat-messages');
-        const msgInput = document.getElementById('msg-input');
+            document.getElementById('vc-toggle-btn').addEventListener('click', toggleVoice);
 
-        async function loadHistory() {
-            const { data } = await supabase.from('bunker_messages').select('*').order('created_at', { ascending: true }).limit(50);
-            if (data) {
-                chatBox.innerHTML = '';
-                data.forEach(appendUI);
+            function handleCallStreams(call) {
+                activeCall = call;
+                call.on('stream', (remoteStream) => {
+                    if (remoteStream.getVideoTracks().length > 0) {
+                        const vid = document.getElementById('remote-video');
+                        vid.srcObject = remoteStream;
+                        document.getElementById('screen-container').style.display = 'flex';
+                    } else {
+                        const aud = document.getElementById('remote-audio');
+                        aud.srcObject = remoteStream;
+                    }
+                });
+            }
+
+            async function toggleScreenShare(forceStop = false) {
+                const container = document.getElementById('screen-container');
+                const btn = document.getElementById('screen-btn');
+
+                if (!forceStop && !localScreenStream) {
+                    try {
+                        localScreenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                        btn.innerText = 'Stop Screen';
+                        container.style.display = 'flex';
+
+                        localScreenStream.getVideoTracks()[0].onended = () => toggleScreenShare(true);
+                    } catch(e) { console.log('Screen share cancelled'); }
+                } else {
+                    if (localScreenStream) localScreenStream.getTracks().forEach(t => t.stop());
+                    localScreenStream = null;
+                    btn.innerText = 'Screen';
+                    container.style.display = 'none';
+                }
+            }
+
+            document.getElementById('screen-btn').addEventListener('click', () => toggleScreenShare());
+
+            const chatBox = document.getElementById('chat-messages');
+            const msgInput = document.getElementById('msg-input');
+
+            async function loadHistory() {
+                const { data } = await supabaseClient.from('bunker_messages').select('*').order('created_at', { ascending: true }).limit(50);
+                if (data) {
+                    chatBox.innerHTML = '';
+                    data.forEach(appendUI);
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                }
+            }
+
+            function appendUI(msg) {
+                const div = document.createElement('div');
+                div.className = 'msg';
+                const initial = (msg.sender_name || 'U')[0].toUpperCase();
+                const timeStr = new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                div.innerHTML = `
+                    <div class="avatar">${escapeHtml(initial)}</div>
+                    <div class="msg-body">
+                        <h4>${escapeHtml(msg.sender_name)} <span>${timeStr}</span></h4>
+                        <p>${escapeHtml(msg.content)}</p>
+                    </div>
+                `;
+                chatBox.appendChild(div);
                 chatBox.scrollTop = chatBox.scrollHeight;
             }
-        }
 
-        function appendUI(msg) {
-            const div = document.createElement('div');
-            div.className = 'msg';
-            const initial = (msg.sender_name || 'U')[0].toUpperCase();
-            const timeStr = new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            div.innerHTML = `
-                <div class="avatar">${escapeHtml(initial)}</div>
-                <div class="msg-body">
-                    <h4>${escapeHtml(msg.sender_name)} <span>${timeStr}</span></h4>
-                    <p>${escapeHtml(msg.content)}</p>
-                </div>
-            `;
-            chatBox.appendChild(div);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
+            function escapeHtml(text) {
+                return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            }
 
-        function escapeHtml(text) {
-            return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        }
+            async function sendMsg() {
+                const content = msgInput.value.trim();
+                if (!content) return;
+                msgInput.value = '';
+                await supabaseClient.from('bunker_messages').insert([{ 
+                    sender_name: myName, 
+                    content: content 
+                }]);
+            }
 
-        async function sendMsg() {
-            const content = msgInput.value.trim();
-            if (!content) return;
-            msgInput.value = '';
-            await supabase.from('bunker_messages').insert([{ 
-                sender_name: myName, 
-                content: content 
-            }]);
-        }
+            msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMsg(); });
 
-        msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMsg(); });
-
-        function subscribeChatRealtime() {
-            supabase
-                .channel('bunker-room-live')
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bunker_messages' }, payload => {
-                    appendUI(payload.new);
-                })
-                .subscribe();
-        }
+            function subscribeChatRealtime() {
+                supabaseClient
+                    .channel('bunker-room-live')
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bunker_messages' }, payload => {
+                        appendUI(payload.new);
+                    })
+                    .subscribe();
+            }
+        })();
     </script>
 </body>
 </html>
