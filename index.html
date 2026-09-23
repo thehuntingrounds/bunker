@@ -14,7 +14,10 @@
         #gate-overlay { position: fixed; inset: 0; background: #1e1f22; display: flex; align-items: center; justify-content: center; z-index: 200; }
         .gate-card { background: #2b2d31; padding: 32px; border-radius: 8px; width: 340px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 12px; }
         .gate-card h2 { color: #f2f3f5; font-size: 18px; text-align: center; margin-bottom: 4px; }
-        .gate-card input { width: 100%; padding: 10px; background: #1e1f22; border: 1px solid #111; color: #fff; border-radius: 4px; outline: none; }
+        .gate-card input[type="password"], .gate-card input[type="text"] { width: 100%; padding: 10px; background: #1e1f22; border: 1px solid #111; color: #fff; border-radius: 4px; outline: none; }
+        .avatar-upload-row { display: flex; align-items: center; gap: 12px; background: #1e1f22; padding: 8px; border-radius: 4px; border: 1px solid #111; }
+        .avatar-preview { width: 40px; height: 40px; border-radius: 50%; background: #5865f2; display: flex; align-items: center; justify-content: center; overflow: hidden; font-weight: bold; color: #fff; flex-shrink: 0; }
+        .avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
         .gate-card button { width: 100%; padding: 10px; background: #5865f2; color: #fff; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
         .gate-card button:hover { background: #4752c4; }
         .error-msg { color: #f23f43; font-size: 12px; text-align: center; min-height: 16px; }
@@ -24,25 +27,27 @@
         
         .sidebar { width: 240px; background: #2b2d31; display: flex; flex-direction: column; padding: 12px; gap: 12px; border-right: 1px solid #1f2023; }
         .sidebar h3 { font-size: 11px; text-transform: uppercase; color: #949ba4; letter-spacing: 0.5px; }
-        .vc-box { background: #1e1f22; border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        
+        /* Collapsible VC Box */
+        .vc-box { background: #1e1f22; border-radius: 6px; padding: 10px; display: flex; flex-direction: column; }
+        .vc-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 12px; color: #f2f3f5; font-weight: bold; user-select: none; }
+        .vc-content { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+        .vc-box.collapsed .vc-content { display: none; }
+        
         .vc-controls { display: flex; gap: 6px; }
         .vc-btn { flex: 1; padding: 6px; font-size: 11px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; background: #383a40; color: #f2f3f5; }
         .vc-btn.active-green { background: #23a55a; color: white; }
-        .vc-btn.screen-btn { background: #5865f2; color: white; }
         
         .main-pane { flex: 1; display: flex; flex-direction: column; background: #313338; }
         .chat-header { height: 48px; border-bottom: 1px solid #1f2023; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; font-weight: bold; color: #f2f3f5; background: #313338; }
-        .user-tag { font-size: 12px; color: #949ba4; font-weight: normal; }
+        .user-tag { font-size: 12px; color: #949ba4; font-weight: normal; display: flex; align-items: center; gap: 8px; }
+        .user-tag img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
         
         .workspace { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
-        
-        /* Video Share Grid Area */
-        #screen-container { display: none; background: #111; padding: 12px; justify-content: center; align-items: center; max-height: 350px; border-bottom: 1px solid #1f2023; }
-        #screen-container video { max-width: 100%; max-height: 300px; border-radius: 6px; background: #000; }
-
         .messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
         .msg { display: flex; gap: 12px; }
-        .avatar { width: 36px; height: 36px; border-radius: 50%; background: #5865f2; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; flex-shrink: 0; }
+        .avatar { width: 36px; height: 36px; border-radius: 50%; background: #5865f2; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; flex-shrink: 0; overflow: hidden; }
+        .avatar img { width: 100%; height: 100%; object-fit: cover; }
         .msg-body h4 { font-size: 14px; color: #f2f3f5; display: flex; gap: 8px; align-items: center; }
         .msg-body h4 span { font-size: 11px; color: #949ba4; font-weight: normal; }
         .msg-body p { font-size: 14px; color: #dbdee1; margin-top: 3px; word-break: break-word; }
@@ -61,7 +66,11 @@
         <div class="gate-card">
             <h2>Bunker Cord Gate</h2>
             <input type="password" id="pass-input" placeholder="Room Password">
-            <input type="text" id="name-input" placeholder="Your Display Name (e.g. Vodyanitsa)" maxlength="20">
+            <input type="text" id="name-input" placeholder="Your Display Name (e.g. Tristan)" maxlength="20">
+            <div class="avatar-upload-row">
+                <div class="avatar-preview" id="gate-avatar-preview">U</div>
+                <input type="file" id="avatar-input" accept="image/*" style="font-size: 11px; color: #dbdee1;">
+            </div>
             <div class="error-msg" id="gate-error"></div>
             <button id="unlock-btn">Unlock & Enter</button>
         </div>
@@ -70,13 +79,17 @@
     <!-- App UI -->
     <div id="app-container">
         <div class="sidebar">
-            <h3>Voice Channel</h3>
-            <div class="vc-box">
-                <div style="font-size: 12px; color: #f2f3f5;">🔊 general-vc</div>
-                <div class="vc-vc-status" id="vc-status" style="font-size: 11px; color: #949ba4;">Disconnected</div>
-                <div class="vc-controls">
-                    <button class="vc-btn" id="vc-toggle-btn">Join VC</button>
-                    <button class="vc-btn screen-btn" id="screen-btn" disabled>Screen</button>
+            <h3>Channels</h3>
+            <div class="vc-box" id="vc-box-container">
+                <div class="vc-header" id="vc-collapse-trigger">
+                    <span>🔊 general-vc</span>
+                    <span id="vc-arrow">▲</span>
+                </div>
+                <div class="vc-content">
+                    <div class="vc-status" id="vc-status" style="font-size: 11px; color: #949ba4;">Disconnected</div>
+                    <div class="vc-controls">
+                        <button class="vc-btn" id="vc-toggle-btn">Join VC</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -88,9 +101,6 @@
             </div>
             
             <div class="workspace">
-                <div id="screen-container">
-                    <video id="remote-video" autoplay playsinline></video>
-                </div>
                 <div class="messages" id="chat-messages"></div>
             </div>
 
@@ -106,19 +116,44 @@
 
     <script>
         (function() {
-            // CONFIG
             const SUPABASE_URL = 'https://jxstuagrdgiobgghfwgj.supabase.co';
             const SUPABASE_KEY = 'sb_publishable_Vvpokk0IL7lCehefj12rnQ_bQsxFrL3';
             const ROOM_PASSWORD = 'tristandota06';
 
             const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             let myName = '';
+            let myAvatar = localStorage.getItem('bunker_avatar') || '';
             let myPeerId = null;
             let peer = null;
             let localStream = null;
-            let localScreenStream = null;
             let activeCall = null;
             let vcChannel = null;
+
+            // Load saved avatar preview on modal if exists
+            if (myAvatar) {
+                document.getElementById('gate-avatar-preview').innerHTML = `<img src="${myAvatar}">`;
+            }
+
+            document.getElementById('avatar-input').addEventListener('change', e => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = ev => {
+                        myAvatar = ev.target.result;
+                        localStorage.setItem('bunker_avatar', myAvatar);
+                        document.getElementById('gate-avatar-preview').innerHTML = `<img src="${myAvatar}">`;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // Collapsible VC box
+            document.getElementById('vc-collapse-trigger').addEventListener('click', () => {
+                const box = document.getElementById('vc-box-container');
+                const arrow = document.getElementById('vc-arrow');
+                box.classList.toggle('collapsed');
+                arrow.innerText = box.classList.contains('collapsed') ? '▼' : '▲';
+            });
 
             function enterBunker() {
                 const pass = document.getElementById('pass-input').value;
@@ -129,7 +164,8 @@
                 if (!name) { err.innerText = 'Enter a display name.'; return; }
 
                 myName = name;
-                document.getElementById('current-user-display').innerText = `Logged in as: ${myName}`;
+                const avatarHtml = myAvatar ? `<img src="${myAvatar}">` : '';
+                document.getElementById('current-user-display').innerHTML = `${avatarHtml} Logged in as: ${myName}`;
                 document.getElementById('gate-overlay').remove();
                 document.getElementById('app-container').style.display = 'flex';
 
@@ -153,7 +189,7 @@
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
                     localStream = stream;
                     call.answer(stream);
-                    handleCallStreams(call);
+                    handleCallAudio(call);
                 });
             }
 
@@ -167,7 +203,7 @@
                     if (data.type === 'peer-announce' && data.peerId !== myPeerId) {
                         if (localStream) {
                             const call = peer.call(data.peerId, localStream);
-                            handleCallStreams(call);
+                            handleCallAudio(call);
                         }
                     }
                 }).subscribe();
@@ -176,15 +212,13 @@
             async function toggleVoice() {
                 const btn = document.getElementById('vc-toggle-btn');
                 const status = document.getElementById('vc-status');
-                const screenBtn = document.getElementById('screen-btn');
 
                 if (!localStream) {
                     try {
                         localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
                         btn.innerText = 'Leave VC';
                         btn.classList.add('active-green');
-                        status.innerText = 'Connected (Microphone Live)';
-                        screenBtn.disabled = false;
+                        status.innerText = 'Connected (Mic Live)';
 
                         vcChannel.send({
                             type: 'broadcast',
@@ -197,51 +231,21 @@
                 } else {
                     localStream.getTracks().forEach(t => t.stop());
                     localStream = null;
-                    if (localScreenStream) toggleScreenShare(true);
                     btn.innerText = 'Join VC';
                     btn.classList.remove('active-green');
                     status.innerText = 'Disconnected';
-                    screenBtn.disabled = true;
                 }
             }
 
             document.getElementById('vc-toggle-btn').addEventListener('click', toggleVoice);
 
-            function handleCallStreams(call) {
+            function handleCallAudio(call) {
                 activeCall = call;
                 call.on('stream', (remoteStream) => {
-                    if (remoteStream.getVideoTracks().length > 0) {
-                        const vid = document.getElementById('remote-video');
-                        vid.srcObject = remoteStream;
-                        document.getElementById('screen-container').style.display = 'flex';
-                    } else {
-                        const aud = document.getElementById('remote-audio');
-                        aud.srcObject = remoteStream;
-                    }
+                    const aud = document.getElementById('remote-audio');
+                    aud.srcObject = remoteStream;
                 });
             }
-
-            async function toggleScreenShare(forceStop = false) {
-                const container = document.getElementById('screen-container');
-                const btn = document.getElementById('screen-btn');
-
-                if (!forceStop && !localScreenStream) {
-                    try {
-                        localScreenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-                        btn.innerText = 'Stop Screen';
-                        container.style.display = 'flex';
-
-                        localScreenStream.getVideoTracks()[0].onended = () => toggleScreenShare(true);
-                    } catch(e) { console.log('Screen share cancelled'); }
-                } else {
-                    if (localScreenStream) localScreenStream.getTracks().forEach(t => t.stop());
-                    localScreenStream = null;
-                    btn.innerText = 'Screen';
-                    container.style.display = 'none';
-                }
-            }
-
-            document.getElementById('screen-btn').addEventListener('click', () => toggleScreenShare());
 
             const chatBox = document.getElementById('chat-messages');
             const msgInput = document.getElementById('msg-input');
@@ -259,9 +263,10 @@
                 const div = document.createElement('div');
                 div.className = 'msg';
                 const initial = (msg.sender_name || 'U')[0].toUpperCase();
+                const avatarContent = msg.sender_avatar ? `<img src="${msg.sender_avatar}">` : escapeHtml(initial);
                 const timeStr = new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                 div.innerHTML = `
-                    <div class="avatar">${escapeHtml(initial)}</div>
+                    <div class="avatar">${avatarContent}</div>
                     <div class="msg-body">
                         <h4>${escapeHtml(msg.sender_name)} <span>${timeStr}</span></h4>
                         <p>${escapeHtml(msg.content)}</p>
@@ -281,7 +286,8 @@
                 msgInput.value = '';
                 await supabaseClient.from('bunker_messages').insert([{ 
                     sender_name: myName, 
-                    content: content 
+                    content: content,
+                    sender_avatar: myAvatar 
                 }]);
             }
 
